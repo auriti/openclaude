@@ -231,10 +231,11 @@ export function convertAnthropicMessagesToResponsesInput(
 
         for (const toolResult of toolResults) {
           const { callId } = normalizeToolUseId(toolResult.tool_use_id)
+          const output = convertToolResultToText(toolResult.content)
           items.push({
             type: 'function_call_output',
             call_id: callId,
-            output: convertToolResultToText(toolResult.content),
+            output: toolResult.is_error ? `Error: ${output}` : output,
           })
         }
 
@@ -453,6 +454,7 @@ function convertToolChoice(toolChoice: unknown): unknown {
   if (!choice?.type) return undefined
   if (choice.type === 'auto') return 'auto'
   if (choice.type === 'any') return 'required'
+  if (choice.type === 'none') return 'none'
   if (choice.type === 'tool' && choice.name) {
     return {
       type: 'function',
