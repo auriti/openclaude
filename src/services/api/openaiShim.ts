@@ -236,19 +236,40 @@ function normalizeSchemaForOpenAI(
   strict = true,
 ): Record<string, unknown> {
   if (schema.type !== 'object' || !schema.properties) return schema
-  const properties = schema.properties as Record<string, unknown>
+  const properties = schema.properties as Record<string, Record<string, unknown>>
   const existingRequired = Array.isArray(schema.required) ? schema.required as string[] : []
-  // OpenAI strict mode requires every property to be listed in required[].
-  // Gemini rejects schemas where required[] contains keys absent from properties,
-  // so only promote keys that actually exist in properties.
+
+  // Recursively normalize nested objects and array items
+  const normalizedProps: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(properties)) {
+    if (value && typeof value === 'object') {
+      const prop = value as Record<string, unknown>
+      if (prop.type === 'object') {
+        normalizedProps[key] = normalizeSchemaForOpenAI(prop, strict)
+      } else if (prop.type === 'array' && prop.items && typeof prop.items === 'object') {
+        const items = prop.items as Record<string, unknown>
+        normalizedProps[key] = {
+          ...prop,
+          items: items.type === 'object' ? normalizeSchemaForOpenAI(items, strict) : items,
+        }
+      } else {
+        normalizedProps[key] = prop
+      }
+    } else {
+      normalizedProps[key] = value
+    }
+  }
+
   if (strict) {
-    const allKeys = Object.keys(properties)
+    // OpenAI strict mode requires every property in required[] and
+    // additionalProperties: false on every object
+    const allKeys = Object.keys(normalizedProps)
     const required = Array.from(new Set([...existingRequired, ...allKeys]))
-    return { ...schema, required }
+    return { ...schema, properties: normalizedProps, required, additionalProperties: false }
   }
   // For Gemini: keep only existing required keys that are present in properties
-  const required = existingRequired.filter(k => k in properties)
-  return { ...schema, required }
+  const required = existingRequired.filter(k => k in normalizedProps)
+  return { ...schema, properties: normalizedProps, required }
 }
 
 function convertTools(
