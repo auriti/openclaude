@@ -564,9 +564,13 @@ class OpenAIShimMessages {
   ) {
     const self = this
 
+    // Capture the real HTTP response for header inspection (quota, rate-limit)
+    let httpResponse: Response | undefined
+
     const promise = (async () => {
       const request = resolveProviderRequest({ model: params.model })
       const response = await self._doRequest(request, params, options)
+      httpResponse = response
 
       if (params.stream) {
         return new OpenAIShimStream(
@@ -593,8 +597,9 @@ class OpenAIShimMessages {
           const data = await promise
           return {
             data,
-            response: new Response(),
-            request_id: makeMessageId(),
+            response: httpResponse ?? new Response(),
+            request_id:
+              httpResponse?.headers.get('x-request-id') ?? makeMessageId(),
           }
         }
 
