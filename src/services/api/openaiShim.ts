@@ -26,6 +26,7 @@ import {
   type ShimCreateParams,
 } from './codexShim.js'
 import {
+  isLocalProviderUrl,
   resolveCodexApiCredentials,
   resolveProviderRequest,
 } from './providerConfig.js'
@@ -672,7 +673,9 @@ class OpenAIShimMessages {
       body.max_completion_tokens = maxCompletionTokensValue
     }
 
-    if (params.stream) {
+    // stream_options is an OpenAI extension not supported by all providers
+    // (Ollama < 0.5 returns 400, some proxies strip unknown fields)
+    if (params.stream && !isLocalProviderUrl(request.baseUrl)) {
       body.stream_options = { include_usage: true }
     }
 
