@@ -185,6 +185,9 @@ function convertMessages(
           (b: { type?: string }) => b.type !== 'tool_use' && b.type !== 'thinking',
         )
 
+        // OpenAI assistant messages only accept string|null for content (not
+        // arrays like user messages), so we must join multiple text parts.
+        // Non-text parts (images) are not supported on assistant role by OpenAI.
         const converted = convertContentBlocks(textContent)
         const assistantMsg: OpenAIMessage = {
           role: 'assistant',
