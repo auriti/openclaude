@@ -39,7 +39,7 @@ function parseLaunchOptions(argv: string[]): LaunchOptions {
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!
     const lower = arg.toLowerCase()
-    if (lower === '--fast') {
+    if (lower === '--fast' || lower === '--bare') {
       fast = true
       continue
     }

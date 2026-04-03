@@ -311,11 +311,14 @@ async function checkBaseUrlReachability(): Promise<CheckResult> {
       signal: controller.signal,
     })
 
-    if (response.status === 200 || response.status === 401 || response.status === 403) {
+    // Accept any response that proves the endpoint is reachable.
+    // Google's Gemini OpenAI-compat endpoint returns 404 for bare /models
+    // GET without a model ID. 429 means rate-limited but reachable.
+    if (response.status < 500) {
       return pass('Provider reachability', `Reached ${endpoint} (status ${response.status}).`)
     }
 
-    return fail('Provider reachability', `Unexpected status ${response.status} from ${endpoint}.`)
+    return fail('Provider reachability', `Server error ${response.status} from ${endpoint}.`)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     return fail('Provider reachability', `Failed to reach ${endpoint}: ${message}`)
