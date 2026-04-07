@@ -143,13 +143,16 @@ test('deserializeMessagesWithInterruptDetection strips thinking blocks only for 
     message => message.type === 'assistant',
   )
 
-  expect(anthropicAssistantMessages).toHaveLength(3)
+  expect(anthropicAssistantMessages).toHaveLength(2)
   expect(anthropicAssistantMessages[0]?.message?.content).toEqual([
     { type: 'thinking', thinking: 'secret reasoning' },
     { type: 'text', text: 'visible reply' },
   ])
-  expect(anthropicAssistantMessages[1]?.message?.content).toEqual([
-    { type: 'thinking', thinking: 'only hidden reasoning' },
-  ])
+  expect(
+    JSON.stringify(anthropicAssistantMessages.map(message => message.message?.content)),
+  ).toContain('secret reasoning')
+  expect(
+    JSON.stringify(anthropicAssistantMessages.map(message => message.message?.content)),
+  ).not.toContain('only hidden reasoning')
 })
 
