@@ -66,6 +66,32 @@ function isGithubModelsMode(): boolean {
   return isEnvTruthy(process.env.CLAUDE_CODE_USE_GITHUB)
 }
 
+function filterAnthropicHeaders(
+  headers: Record<string, string> | undefined,
+): Record<string, string> {
+  if (!headers) return {}
+
+  const filtered: Record<string, string> = {}
+  for (const [key, value] of Object.entries(headers)) {
+    const lower = key.toLowerCase()
+    if (
+      lower.startsWith('x-anthropic') ||
+      lower.startsWith('anthropic-') ||
+      lower.startsWith('x-claude') ||
+      lower === 'x-app' ||
+      lower === 'x-client-app' ||
+      lower === 'authorization' ||
+      lower === 'x-api-key' ||
+      lower === 'api-key'
+    ) {
+      continue
+    }
+    filtered[key] = value
+  }
+
+  return filtered
+}
+
 function hasGeminiApiHost(baseUrl: string | undefined): boolean {
   if (!baseUrl) return false
 
@@ -83,31 +109,6 @@ function formatRetryAfterHint(response: Response): string {
 
 function sleepMs(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
-}
-
-/**
- * Removes Anthropic-specific headers from a headers map before forwarding to
- * third-party providers. Acts as a last-resort defense-in-depth guard: the
- * primary filtering happens in client.ts when the shim client is created, but
- * this ensures that headers injected later (e.g. via options.headers on
- * individual requests) are also scrubbed regardless of call path.
- */
-function filterAnthropicHeaders(headers: Record<string, string>): Record<string, string> {
-  const safe: Record<string, string> = {}
-  for (const [k, v] of Object.entries(headers)) {
-    const lower = k.toLowerCase()
-    if (
-      lower.startsWith('x-anthropic') ||
-      lower.startsWith('x-claude') ||
-      lower === 'x-app' ||
-      lower === 'x-client-app' ||
-      lower === 'authorization' ||
-      lower === 'x-api-key' ||
-      lower === 'api-key'
-    ) continue
-    safe[k] = v
-  }
-  return safe
 }
 
 // ---------------------------------------------------------------------------
@@ -220,10 +221,12 @@ function convertContentBlocks(
         // handled separately
         break
       case 'thinking':
-        // Append thinking as text with a marker for models that support reasoning
-        if (block.thinking) {
-          parts.push({ type: 'text', text: `<thinking>${block.thinking}</thinking>` })
-        }
+      case 'redacted_thinking':
+        // Strip thinking blocks for OpenAI-compatible providers.
+        // These are Anthropic-specific content types that 3P providers
+        // don't understand. Serializing them as <thinking> text corrupts
+        // multi-turn context: the model sees the tags as part of its
+        // previous reply and may mimic or misattribute them.
         break
       default:
         if (block.text) {
@@ -948,9 +951,6 @@ class OpenAIShimMessages {
   private providerOverride?: { model: string; baseURL: string; apiKey: string }
 
   constructor(defaultHeaders: Record<string, string>, reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh', providerOverride?: { model: string; baseURL: string; apiKey: string }) {
-    // Filter at construction time so Anthropic-specific headers can never
-    // reach a 3P endpoint regardless of how the shim client was created,
-    // including providerOverride-based routing that bypasses client.ts.
     this.defaultHeaders = filterAnthropicHeaders(defaultHeaders)
     this.reasoningEffort = reasoningEffort
     this.providerOverride = providerOverride
@@ -1033,8 +1033,7 @@ class OpenAIShimMessages {
         params,
         defaultHeaders: {
           ...this.defaultHeaders,
-          // Filter per-request headers for the same reason as _doOpenAIRequest.
-          ...filterAnthropicHeaders(options?.headers ?? {}),
+          ...filterAnthropicHeaders(options?.headers),
         },
         signal: options?.signal,
       })
@@ -1122,9 +1121,7 @@ class OpenAIShimMessages {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...this.defaultHeaders,
-      // Filter per-request headers: last-resort guard against Anthropic-specific
-      // headers reaching 3P endpoints even when passed via options.headers directly.
-      ...filterAnthropicHeaders(options?.headers ?? {}),
+      ...filterAnthropicHeaders(options?.headers),
     }
 
     const isGemini = isGeminiMode()
