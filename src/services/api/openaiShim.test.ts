@@ -1898,19 +1898,30 @@ test('strips Anthropic-specific headers even when passed directly to the shim â€
     defaultHeaders: {
       'x-anthropic-secret': 'should-be-stripped',
       'x-claude-session-id': 'also-stripped',
+      'anthropic-version': '2023-06-01',
+      'anthropic-beta': 'prompt-caching-2024-07-31',
       'User-Agent': 'openclaude/1.0',
     },
   }) as OpenAIShimClient
 
   await client.beta.messages.create(
     { model: 'gpt-4o', messages: [{ role: 'user', content: 'hi' }], max_tokens: 16, stream: false },
-    { headers: { 'x-anthropic-per-request': 'also-bad', 'X-Custom-Ok': 'fine' } },
+    {
+      headers: {
+        'x-anthropic-per-request': 'also-bad',
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'tools-2024-09-04',
+        'X-Custom-Ok': 'fine',
+      },
+    },
   )
 
   expect(capturedHeaders).toBeDefined()
   expect(capturedHeaders!['x-anthropic-secret']).toBeUndefined()
   expect(capturedHeaders!['x-claude-session-id']).toBeUndefined()
   expect(capturedHeaders!['x-anthropic-per-request']).toBeUndefined()
+  expect(capturedHeaders!['anthropic-version']).toBeUndefined()
+  expect(capturedHeaders!['anthropic-beta']).toBeUndefined()
   expect(capturedHeaders!['User-Agent']).toBe('openclaude/1.0')
   expect(capturedHeaders!['X-Custom-Ok']).toBe('fine')
 })

@@ -189,6 +189,7 @@ export async function getAnthropicClient({
       if (
         lower.startsWith('x-anthropic') ||
         lower.startsWith('x-claude') ||
+        lower.startsWith('anthropic-') ||
         lower === 'x-app' ||
         lower === 'x-client-app' ||
         lower === 'authorization' ||
